@@ -17,7 +17,7 @@ jobs:
     - name: Set up SSH
       uses: webfactory/ssh-agent@v0.5.3
       with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+        ssh-private-key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
 
     - name: Set up Docker
       run: |
@@ -27,7 +27,7 @@ jobs:
 
     - name: SSH into server
       run: |
-        ssh -o StrictHostKeyChecking=no -i ${{ secrets.SSH_PRIVATE_KEY }} username@${{ secrets.SERVER_IP }} << 'EOF'
+        ssh -o StrictHostKeyChecking=no -i ${{ secrets.DO_SSH_PRIVATE_KEY }} ${DO_SSH_USER}@${DO_HOST} << 'EOF'
           # Check if deploy_to_gcp_app_engine file exists
           if [ ! -f /opt/pythonapp/deploy_to_gcp_app_engine ]; then
             echo "Error: 'deploy_to_gcp_app_engine' file is missing!"
