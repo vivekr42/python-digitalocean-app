@@ -14,7 +14,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v2
 
-    - name: Set up SSH
+    - name: Set up SSH agent
       uses: webfactory/ssh-agent@v0.5.3
       with:
         ssh-private-key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
@@ -28,7 +28,7 @@ jobs:
     - name: SSH into server with Debugging
       run: |
         echo "Attempting to SSH into the server..."
-        # Detailed SSH connection test
+        # Debugging SSH connection
         ssh -o StrictHostKeyChecking=no -v -i ${{ secrets.DO_SSH_PRIVATE_KEY }} ${DO_SSH_USER}@${DO_HOST} "echo 'SSH connection successful!'"
         
         # SSH into server with debugging
