@@ -1,12 +1,12 @@
-FROM python:3.9-slim AS build
+# Set the working directory
 WORKDIR /app
-COPY . /app
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
-    && pip install --no-cache-dir -r requirements.txt \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
 
-FROM python:3.9-slim AS production
-WORKDIR /app
-COPY --from=build /app /app
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies (if any)
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+# Copy the app files
+COPY . .
+
+# Run the Python app
+CMD ["python3", "app.py"]
