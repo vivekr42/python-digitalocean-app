@@ -1,4 +1,4 @@
-name: Deploy to DigitalOcean
+name: Deploy Python App to DigitalOcean
 
 on:
   push:
@@ -10,36 +10,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      # Checkout the code from the repository
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-    - name: Install SSH and rsync
-      run: sudo apt-get update && sudo apt-get install -y openssh-client rsync
+      # Set up SSH key and known hosts
+      - name: Set up SSH key
+        run: |
+          # Decode the base64 encoded SSH private key stored in the secret
+          echo "$DO_SSH_KEY_BASE64" | base64 --decode > private_key
+          
+          # Set the proper permissions for the private key
+          chmod 600 private_key
+          
+          # Create SSH directory and move the key to the appropriate location
+          mkdir -p ~/.ssh
+          mv private_key ~/.ssh/id_ed25519
+          
+          # Add the remote host to known hosts to avoid SSH warnings
+          ssh-keyscan -t ed25519 $HOST >> ~/.ssh/known_hosts
 
-    - name: Decode SSH private key
-      run: |
-        echo "${{ secrets.DO_SSH_KEY_BASE64 }}" | base64 -d > private_key
-        chmod 600 private_key
+      # Install required dependencies (rsync and OpenSSH client)
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rsync openssh-client
 
-    - name: Rsync files to remote server
-      env:
-        HOST: ${{ secrets.DO_HOST }}
-        USER: ${{ secrets.DO_USER }}
-      run: |
-        rsync -avz -e "ssh -i private_key -o StrictHostKeyChecking=no" ./ $USER@$HOST:/opt/pythonapp/
+      # Deploy files to DigitalOcean server using rsync over SSH
+      - name: Deploy files to DigitalOcean
+        run: |
+          rsync -avz -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" ./ $USER@$HOST:/opt/pythonapp/
 
-    - name: SSH and run remote deploy script
-      env:
-        HOST: ${{ secrets.DO_HOST }}
-        USER: ${{ secrets.DO_USER }}
-      run: |
-        ssh -i private_key -o StrictHostKeyChecking=no $USER@$HOST << 'EOF'
-          echo "Connected to server ✅"
-          if [ -f "/opt/pythonapp/deploy_to_gcp_app_engine.sh" ]; then
-            chmod +x /opt/pythonapp/deploy_to_gcp_app_engine.sh
-            /opt/pythonapp/deploy_to_gcp_app_engine.sh
-          else
-            echo "⚠️ deploy_to_gcp_app_engine.sh not found!"
-            exit 1
-          fi
-        EOF
