@@ -24,10 +24,11 @@ jobs:
         env:
           DO_SSH_KEY_BASE64: ${{ secrets.DO_SSH_KEY_BASE64 }}
         
-      # Step 3: Decode the base64 encoded SSH private key stored in the secret
+      # Step 3: Decode and set up SSH private key
       - name: Decode and set up SSH private key
         run: |
           echo "Decoding SSH private key..."
+          mkdir -p ~/.ssh
           echo "$DO_SSH_KEY_BASE64" | base64 --decode > ~/.ssh/id_ed25519
           if [ ! -f ~/.ssh/id_ed25519 ]; then
             echo "SSH private key not found after decoding."
@@ -43,13 +44,11 @@ jobs:
           echo "Starting SSH agent..."
           eval $(ssh-agent -s)
           ssh-add ~/.ssh/id_ed25519
-        if: success()
 
       # Step 5: Ensure the known_hosts file is set up (prevent SSH authenticity issues)
       - name: Set up known_hosts
         run: |
           echo "Adding ${{ secrets.DO_HOST }} to known_hosts..."
-          mkdir -p ~/.ssh
           ssh-keyscan -t ed25519 ${{ secrets.DO_HOST }} >> ~/.ssh/known_hosts
           if [ $? -ne 0 ]; then
             echo "Failed to add ${{ secrets.DO_HOST }} to known_hosts."
