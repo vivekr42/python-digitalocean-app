@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  app_service:
+    build:
+      context: .
+      dockerfile: deploy_to_gcp_app_engine/services/app/Dockerfile
+      target: dev  # Build the 'dev' target from the Dockerfile
+    container_name: ai_tutor_app
+    environment:
+      - ENVIRONMENT=dev
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/ai_tutor_app  # Mount your current project directory into the container directory named  directory, for live code changes
