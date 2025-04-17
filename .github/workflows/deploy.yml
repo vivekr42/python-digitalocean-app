@@ -23,7 +23,7 @@ jobs:
           fi
         env:
           DO_SSH_KEY_BASE64: ${{ secrets.DO_SSH_KEY_BASE64 }}
-        
+
       # Step 3: Decode and set up SSH private key
       - name: Decode and set up SSH private key
         run: |
@@ -72,7 +72,7 @@ jobs:
           DO_SSH_USER: ${{ secrets.DO_SSH_USER }}
           DO_HOST: ${{ secrets.DO_HOST }}
 
-      # Step 7: Deploy to DigitalOcean
+      # Step 7: Deploy files to DigitalOcean
       - name: Deploy to DigitalOcean
         run: |
           echo "Starting deployment to DigitalOcean..."
@@ -85,7 +85,38 @@ jobs:
           DO_SSH_USER: ${{ secrets.DO_SSH_USER }}
           DO_HOST: ${{ secrets.DO_HOST }}
 
-      # Step 8: Final check
+      # Step 8: Build Docker image on the DigitalOcean server
+      - name: Build Docker image
+        run: |
+          echo "Building Docker image..."
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no $DO_SSH_USER@$DO_HOST << 'EOF'
+            cd /opt/pythonapp
+            docker build -t python-digitalocean-app .
+            if [ $? -ne 0 ]; then
+              echo "Docker image build failed."
+              exit 1
+            fi
+          EOF
+        env:
+          DO_SSH_USER: ${{ secrets.DO_SSH_USER }}
+          DO_HOST: ${{ secrets.DO_HOST }}
+
+      # Step 9: Run Docker container on the DigitalOcean server
+      - name: Run Docker container
+        run: |
+          echo "Running Docker container..."
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no $DO_SSH_USER@$DO_HOST << 'EOF'
+            docker run -d -p 80:80 --name python-digitalocean-app python-digitalocean-app
+            if [ $? -ne 0 ]; then
+              echo "Failed to start Docker container."
+              exit 1
+            fi
+          EOF
+        env:
+          DO_SSH_USER: ${{ secrets.DO_SSH_USER }}
+          DO_HOST: ${{ secrets.DO_HOST }}
+
+      # Step 10: Final check
       - name: Final check
         run: |
-          echo "Deployment completed successfully!"
+          echo "Deployment and container start completed successfully!"
