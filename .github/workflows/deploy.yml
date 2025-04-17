@@ -49,20 +49,14 @@ jobs:
               git pull origin main
             fi
 
-            # Ensure docker-compose.yml exists
-            if [ ! -f "$APP_DIR/docker-compose.yml" ]; then
-              echo "docker-compose.yml file not found, aborting deployment."
-              exit 1
-            fi
-
             # Navigate to the application directory
             cd $APP_DIR
 
             # Stop and remove any existing containers using Docker Compose
-            docker-compose down || true
+            docker-compose -f /opt/pythonapp/docker-compose.dev.yml down || true
 
             # Build and start the app using Docker Compose
-            docker-compose up -d --build
+            docker-compose -f /opt/pythonapp/docker-compose.dev.yml up -d --build
 
             # Display the running containers
             docker ps
