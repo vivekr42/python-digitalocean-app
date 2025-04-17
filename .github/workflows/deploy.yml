@@ -1,63 +1,62 @@
-name: Deploy to DigitalOcean with Docker Compose
+name: Deploy Python App to DigitalOcean
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout the repository
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v2
 
-      # Step 2: Set up SSH Agent to use the private key for deployment
-      - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.8.0
-        with:
-          ssh-private-key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+    - name: Set up SSH
+      uses: webfactory/ssh-agent@v0.5.3
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # Step 3: Set up Docker on the GitHub Actions runner
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@v2
+    - name: Set up Docker
+      run: |
+        sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose
+        docker-compose --version
 
-      # Step 4: Install Docker Compose
-      - name: Install Docker Compose
-        run: |
-          sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-          sudo chmod +x /usr/local/bin/docker-compose
-          docker-compose --version  # Verify installation
+    - name: SSH into server
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ${{ secrets.SSH_PRIVATE_KEY }} username@${{ secrets.SERVER_IP }} << 'EOF'
+          # Check if deploy_to_gcp_app_engine file exists
+          if [ ! -f /opt/pythonapp/deploy_to_gcp_app_engine ]; then
+            echo "Error: 'deploy_to_gcp_app_engine' file is missing!"
+            exit 1
+          fi
+          
+          # Navigate to the app directory
+          cd /opt/pythonapp
 
-      # Step 5: Deploy to Droplet using Docker Compose
-      - name: Deploy to Droplet using Docker Compose
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_HOST }} << 'EOF'
-            # Define the application directory on the Droplet
-            APP_DIR="/opt/pythonapp"
+          # Check if docker-compose.dev.yml file exists
+          if [ ! -f docker-compose.dev.yml ]; then
+            echo "Error: 'docker-compose.dev.yml' file is missing!"
+            exit 1
+          fi
 
-            # Check if the application directory exists
-            if [ ! -d "$APP_DIR" ]; then
-              # If it doesn't exist, create it and clone the repository
-              mkdir -p $APP_DIR
-              git clone https://github.com/vivekr42/python-digitalocean-app.git $APP_DIR
-            else
-              # If it exists, navigate into it and pull the latest changes
-              cd $APP_DIR
-              git pull origin main
-            fi
+          # Build and start Docker containers
+          echo "Building Docker containers..."
+          sudo docker-compose -f docker-compose.dev.yml up -d
 
-            # Navigate to the application directory
-            cd $APP_DIR
+          # Check if the app started successfully
+          if [ $(sudo docker ps -q -f name=pythonapp) ]; then
+            echo "App deployed successfully!"
+          else
+            echo "Error: App failed to start!"
+            exit 1
+          fi
+        EOF
 
-            # Stop and remove any existing containers using Docker Compose
-            docker-compose -f /opt/pythonapp/docker-compose.dev.yml down || true
-
-            # Build and start the app using Docker Compose
-            docker-compose -f /opt/pythonapp/docker-compose.dev.yml up -d --build
-
-            # Display the running containers
-            docker ps
-          EOF
+    - name: Cleanup
+      run: |
+        # Add any cleanup steps if necessary
+        echo "Deployment completed!"
