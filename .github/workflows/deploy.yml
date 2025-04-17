@@ -1,4 +1,4 @@
-name: Deploy Python App to DigitalOcean
+name: Deploy to DigitalOcean
 
 on:
   push:
@@ -10,49 +10,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      # STEP 1: Setup SSH key
-      - name: Setup SSH key
-        run: |
-          echo "${{ secrets.DO_SSH_PRIVATE_KEY }}" > private_key
-          chmod 600 private_key
+    - name: Set up SSH private key
+      run: |
+        echo "${{ secrets.DO_SSH_KEY }}" > private_key
+        chmod 600 private_key
 
-      # STEP 2: Debugging SSH and deploying app
-      - name: SSH into server and deploy app
-        run: |
-          echo "Attempting to SSH into the server..."
+    - name: Upload project to server
+      run: |
+        sudo apt-get update && sudo apt-get install -y rsync
+        rsync -az -e "ssh -i private_key -o StrictHostKeyChecking=no" ./ ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_HOST }}:/opt/pythonapp
 
-          ssh -o StrictHostKeyChecking=no -v -i private_key ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_HOST }} << 'EOF'
-            echo "Connected to server."
+    - name: Deploy via SSH
+      run: |
+        echo "Attempting to SSH into the server..."
+        ssh -i private_key -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_HOST }} << 'EOF'
+          echo "Connected to server."
+          cd /opt/pythonapp || { echo "Directory /opt/pythonapp not found!"; exit 1; }
 
-            echo "Listing files in /opt/pythonapp"
-            ls -l /opt/pythonapp
+          echo "Pulling updated Docker images..."
+          docker compose -f docker-compose.dev.yml pull
 
-            if [ ! -f /opt/pythonapp/deploy_to_gcp_app_engine ]; then
-              echo "Error: 'deploy_to_gcp_app_engine' file is missing!"
-              exit 1
-            fi
+          echo "Stopping existing containers..."
+          docker compose -f docker-compose.dev.yml down
 
-            cd /opt/pythonapp || exit 1
+          echo "Starting new containers..."
+          docker compose -f docker-compose.dev.yml up -d --build
 
-            if [ ! -f docker-compose.dev.yml ]; then
-              echo "Error: 'docker-compose.dev.yml' file is missing!"
-              exit 1
-            fi
-
-            echo "Building Docker containers..."
-            sudo docker-compose -f docker-compose.dev.yml up -d
-
-            if [ \$(sudo docker ps -q -f name=pythonapp) ]; then
-              echo "App deployed successfully!"
-            else
-              echo "Error: App failed to start!"
-              exit 1
-            fi
-          EOF
-
-      # STEP 3: Clean up SSH key
-      - name: Cleanup
-        run: rm -f private_key
+          echo "Deployment complete."
+        EOF
