@@ -32,12 +32,15 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.DO_SSH_PRIVATE_KEY }}  # GitHub Secret containing your private key
 
-      # Deploy app to DigitalOcean Droplet
+      # Deploy app to DigitalOcean
       - name: Deploy to DigitalOcean
         run: |
           ssh -o StrictHostKeyChecking=no root@144.126.215.126 << 'EOF'
-            cd /home/root/python-digitalocean-app  # Navigate to your app directory on the Droplet
+            # Navigate to your app directory, or clone the repo if not exists
+            cd /home/root/python-digitalocean-app || git clone https://github.com/vivekr42/python-digitalocean-app.git
+            cd python-digitalocean-app
             git pull origin main  # Pull the latest changes from GitHub
-            # Restart the app (change this to fit your app, for example if using Gunicorn or Flask)
-            sudo systemctl restart your-app-service  # Restart your app service if applicable
+
+            # Restart your app (adjust service name as necessary)
+            sudo systemctl restart gunicorn  # Replace with your actual service name
           EOF
