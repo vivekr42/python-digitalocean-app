@@ -1,4 +1,4 @@
-name: Deploy to DigitalOcean
+name: Deploy to DigitalOcean with Docker Compose
 
 on:
   push:
@@ -10,31 +10,47 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # Step 2: Set up SSH Agent to use the private key for deployment
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
 
-      - name: Deploy to Droplet
+      # Step 3: Set up Docker on the GitHub Actions runner
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
+
+      # Step 4: Deploy to DigitalOcean Droplet
+      - name: Deploy to Droplet using Docker Compose
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_HOST }} << 'EOF'
+            # Define the application directory on the Droplet
             APP_DIR="/opt/pythonapp"
 
-            if [ ! -d "$APP_DIR/.git" ]; then
-              rm -rf $APP_DIR
+            # Check if the application directory exists
+            if [ ! -d "$APP_DIR" ]; then
+              # If it doesn't exist, create it and clone the repository
+              mkdir -p $APP_DIR
               git clone https://github.com/vivekr42/python-digitalocean-app.git $APP_DIR
             else
+              # If it exists, navigate into it and pull the latest changes
               cd $APP_DIR
               git pull origin main
             fi
 
+            # Navigate to the application directory
             cd $APP_DIR
 
-            docker stop pythonapp || true
-            docker rm pythonapp || true
-            docker build -t pythonapp .
-            docker run -d --name pythonapp -p 80:8000 pythonapp
+            # Stop and remove any existing containers using Docker Compose
+            docker-compose down || true
+
+            # Build and start the app using Docker Compose
+            docker-compose -f docker-compose.yml up -d --build
+
+            # Display the running containers
+            docker ps
           EOF
