@@ -1,5 +1,7 @@
-aiohttp
 google-genai==0.3.0
 google-generativeai==0.8.3
+websockets
 pydub
 python-dotenv
+aiohttp
+gunicorn==23.0.0
