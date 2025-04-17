@@ -20,13 +20,14 @@ jobs:
       run: |
         echo "Building Docker image..."
         docker build -t python-digitalocean-app:latest .
-    
+        docker images  # List Docker images to confirm the image was built
+
     - name: Check if Docker container is running
       run: |
-        echo "Checking if container is running..."
+        echo "Checking if container is already running..."
         CONTAINER_STATUS=$(docker ps -q -f name=python-digitalocean-app)
         if [ -n "$CONTAINER_STATUS" ]; then
-          echo "Container is already running, stopping it..."
+          echo "Container is already running with ID $CONTAINER_STATUS, stopping it..."
           docker stop python-digitalocean-app
         else
           echo "No running container found."
@@ -34,13 +35,19 @@ jobs:
     
     - name: Remove existing Docker container
       run: |
-        echo "Removing existing Docker container..."
+        echo "Removing existing Docker container if any..."
         docker rm -f python-digitalocean-app || echo "No existing container to remove."
+    
+    - name: Verify Docker container is removed
+      run: |
+        echo "Verifying if container was removed..."
+        docker ps -a  # List all containers to confirm the old container is removed
     
     - name: Run Docker container
       run: |
         echo "Running Docker container..."
         docker run --name python-digitalocean-app -d python-digitalocean-app:latest
+        docker ps -a  # List all containers to confirm if it started successfully
     
     - name: Clean up Docker images and containers
       run: |
