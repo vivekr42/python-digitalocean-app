@@ -12,23 +12,76 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
+      continue-on-error: false # Fail if checkout fails
+
+    - name: Check DO_SSH_KEY_BASE64 secret
+      run: |
+        if [ -z "$DO_SSH_KEY_BASE64" ]; then
+          echo "DO_SSH_KEY_BASE64 is not set."
+          exit 1
+        fi
+        echo "DO_SSH_KEY_BASE64 is set."
+
+    - name: Check DO_SSH_USER secret
+      run: |
+        if [ -z "$DO_SSH_USER" ]; then
+          echo "DO_SSH_USER is not set."
+          exit 1
+        fi
+        echo "DO_SSH_USER is set."
+
+    - name: Check DO_HOST secret
+      run: |
+        if [ -z "$DO_HOST" ]; then
+          echo "DO_HOST is not set."
+          exit 1
+        fi
+        echo "DO_HOST is set."
 
     - name: Set up SSH keys
       run: |
         mkdir -p ~/.ssh
         echo "$DO_SSH_KEY_BASE64" | base64 --decode > ~/.ssh/id_ed25519
         chmod 600 ~/.ssh/id_ed25519
+        if [ ! -f ~/.ssh/id_ed25519 ]; then
+          echo "SSH key was not successfully written."
+          exit 1
+        fi
+        echo "SSH key successfully set up."
+
+    - name: Add DO_HOST to known_hosts
+      run: |
         ssh-keyscan -H $DO_HOST >> ~/.ssh/known_hosts
+        if [ $? -ne 0 ]; then
+          echo "Failed to add $DO_HOST to known_hosts."
+          exit 1
+        fi
+        echo "$DO_HOST successfully added to known_hosts."
 
     - name: Install dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y openssh-client rsync
+        if [ $? -ne 0 ]; then
+          echo "Failed to install dependencies."
+          exit 1
+        fi
+        echo "Dependencies installed successfully."
 
     - name: Rsync files to DigitalOcean server
       run: |
         rsync -avz -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" ./ $DO_SSH_USER@$DO_HOST:/opt/pythonapp/
+        if [ $? -ne 0 ]; then
+          echo "Failed to rsync files to the server."
+          exit 1
+        fi
+        echo "Files successfully synced to $DO_HOST."
 
     - name: Restart the application on the server (Optional)
       run: |
         ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no $DO_SSH_USER@$DO_HOST 'sudo systemctl restart pythonapp.service'
+        if [ $? -ne 0 ]; then
+          echo "Failed to restart the application."
+          exit 1
+        fi
+        echo "Application successfully restarted."
