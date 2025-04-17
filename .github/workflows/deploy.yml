@@ -1,0 +1,43 @@
+name: Deploy Python App to DigitalOcean
+
+on:
+  push:
+    branches:
+      - main  # Trigger deployment on push to 'main' branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      # Set up Python environment
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+
+      # Install dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Set up SSH to the DigitalOcean Droplet
+      - name: Set up SSH key
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.DO_SSH_PRIVATE_KEY }}  # GitHub Secret containing your private key
+
+      # Deploy app to DigitalOcean Droplet
+      - name: Deploy to DigitalOcean
+        run: |
+          ssh -o StrictHostKeyChecking=no root@144.126.215.126 << 'EOF'
+            cd /path/to/your/app  # Navigate to your app directory on the Droplet
+            git pull origin main  # Pull the latest changes from GitHub
+            # Restart the app (change this to fit your app, for example if using Gunicorn or Flask)
+            sudo systemctl restart your-app-service  # Restart your app service if applicable
+          EOF
