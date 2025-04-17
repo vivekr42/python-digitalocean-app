@@ -4,68 +4,55 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    - name: Set up SSH agent
-      uses: webfactory/ssh-agent@v0.5.3
-      with:
-        ssh-private-key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+      # STEP 1: Setup SSH key
+      - name: Setup SSH key
+        run: |
+          echo "${{ secrets.DO_SSH_PRIVATE_KEY }}" > private_key
+          chmod 600 private_key
 
-    - name: Set up Docker
-      run: |
-        sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-        sudo chmod +x /usr/local/bin/docker-compose
-        docker-compose --version
+      # STEP 2: Debugging SSH and deploying app
+      - name: SSH into server and deploy app
+        run: |
+          echo "Attempting to SSH into the server..."
 
-    - name: SSH into server with Debugging
-      run: |
-        echo "Attempting to SSH into the server..."
-        # Debugging SSH connection
-        ssh -o StrictHostKeyChecking=no -v -i ${{ secrets.DO_SSH_PRIVATE_KEY }} ${DO_SSH_USER}@${DO_HOST} "echo 'SSH connection successful!'"
-        
-        # SSH into server with debugging
-        ssh -o StrictHostKeyChecking=no -v -i ${{ secrets.DO_SSH_PRIVATE_KEY }} ${DO_SSH_USER}@${DO_HOST} << 'EOF'
-          # Debugging: List files to ensure the path is correct
-          echo "Listing files in /opt/pythonapp"
-          ls -l /opt/pythonapp
+          ssh -o StrictHostKeyChecking=no -v -i private_key ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_HOST }} << 'EOF'
+            echo "Connected to server."
 
-          # Check if deploy_to_gcp_app_engine file exists
-          if [ ! -f /opt/pythonapp/deploy_to_gcp_app_engine ]; then
-            echo "Error: 'deploy_to_gcp_app_engine' file is missing!"
-            exit 1
-          fi
-          
-          # Navigate to the app directory
-          cd /opt/pythonapp
+            echo "Listing files in /opt/pythonapp"
+            ls -l /opt/pythonapp
 
-          # Check if docker-compose.dev.yml file exists
-          if [ ! -f docker-compose.dev.yml ]; then
-            echo "Error: 'docker-compose.dev.yml' file is missing!"
-            exit 1
-          fi
+            if [ ! -f /opt/pythonapp/deploy_to_gcp_app_engine ]; then
+              echo "Error: 'deploy_to_gcp_app_engine' file is missing!"
+              exit 1
+            fi
 
-          # Build and start Docker containers
-          echo "Building Docker containers..."
-          sudo docker-compose -f docker-compose.dev.yml up -d
+            cd /opt/pythonapp || exit 1
 
-          # Check if the app started successfully
-          if [ $(sudo docker ps -q -f name=pythonapp) ]; then
-            echo "App deployed successfully!"
-          else
-            echo "Error: App failed to start!"
-            exit 1
-          fi
-        EOF
+            if [ ! -f docker-compose.dev.yml ]; then
+              echo "Error: 'docker-compose.dev.yml' file is missing!"
+              exit 1
+            fi
 
-    - name: Cleanup
-      run: |
-        # Add any cleanup steps if necessary
-        echo "Deployment completed!"
+            echo "Building Docker containers..."
+            sudo docker-compose -f docker-compose.dev.yml up -d
+
+            if [ \$(sudo docker ps -q -f name=pythonapp) ]; then
+              echo "App deployed successfully!"
+            else
+              echo "Error: App failed to start!"
+              exit 1
+            fi
+          EOF
+
+      # STEP 3: Clean up SSH key
+      - name: Cleanup
+        run: rm -f private_key
