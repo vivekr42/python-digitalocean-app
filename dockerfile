@@ -1,20 +1,27 @@
-# Use an official Python runtime as a parent image
-FROM python:3.9-slim
+# Use official Python image as a base
+FROM python:3.10-slim
 
-# Set the working directory in the container
+# Set working directory inside the container
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY . .
+# Install system dependencies (like ffmpeg for pydub)
+RUN apt-get update && \
+    apt-get install -y \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install the dependencies from requirements.txt
+# Install Python dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose the port the app will run on
-EXPOSE 8000
+# Copy the rest of the application files to the container
+COPY . .
 
-# Define environment variables (optional)
-ENV PYTHONUNBUFFERED 1
+# Expose the port for the application (should match the port in your script)
+EXPOSE 80
+
+# Set environment variable for Google API key (adjust based on how you pass it)
+ENV GOOGLE_API_KEY=<your-google-api-key-here>
 
 # Run the application
 CMD ["python", "main.py"]

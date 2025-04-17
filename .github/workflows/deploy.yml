@@ -1,55 +1,53 @@
-name: Deploy to DigitalOcean
+name: Build and Deploy Docker App
 
 on:
   push:
     branches:
-      - main
+      - main   # Trigger action on push to the 'main' branch
+  pull_request:
+    branches:
+      - main   # Trigger action on pull requests to the 'main' branch
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-    
-    - name: Set up Docker
-      uses: docker/setup-buildx-action@v2
-    
-    - name: Build Docker image
-      run: |
-        echo "Building Docker image..."
-        docker build -t python-digitalocean-app:latest .
-        docker images  # List Docker images to confirm the image was built
+  build:
+    runs-on: ubuntu-latest  # Use the latest Ubuntu environment
 
-    - name: Check if Docker container is running
-      run: |
-        echo "Checking if container is already running..."
-        CONTAINER_STATUS=$(docker ps -q -f name=python-digitalocean-app)
-        if [ -n "$CONTAINER_STATUS" ]; then
-          echo "Container is already running with ID $CONTAINER_STATUS, stopping it..."
-          docker stop python-digitalocean-app
-        else
-          echo "No running container found."
-        fi
-    
-    - name: Remove existing Docker container
-      run: |
-        echo "Removing existing Docker container if any..."
-        docker rm -f python-digitalocean-app || echo "No existing container to remove."
-    
-    - name: Verify Docker container is removed
-      run: |
-        echo "Verifying if container was removed..."
-        docker ps -a  # List all containers to confirm the old container is removed
-    
-    - name: Run Docker container
-      run: |
-        echo "Running Docker container..."
-        docker run --name python-digitalocean-app -d python-digitalocean-app:latest
-        docker ps -a  # List all containers to confirm if it started successfully
-    
-    - name: Clean up Docker images and containers
-      run: |
-        echo "Cleaning up Docker..."
-        docker system prune -f
+    steps:
+      # Checkout the code from the repository
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      # Set up Docker
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # Cache Docker layers for faster builds
+      - name: Cache Docker layers
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # Build Docker image
+      - name: Build Docker image
+        run: |
+          docker build -t python-digitalocean-app .
+
+      # Run tests (if applicable) - this step can be skipped if not needed
+      - name: Run tests
+        run: |
+          docker run --rm python-digitalocean-app python -m unittest discover -s tests
+
+      # Deploy Docker container and pass the GOOGLE_API_KEY as an environment variable
+      - name: Deploy Docker container
+        run: |
+          docker run -d --name python-digitalocean-app -p 8000:80 \
+          -e GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }} \
+          python-digitalocean-app
+
+      # Optional: Check Docker container status
+      - name: Check Docker container status
+        run: |
+          docker ps
