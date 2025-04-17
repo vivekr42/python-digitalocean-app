@@ -27,7 +27,15 @@ jobs:
 
     - name: SSH into server
       run: |
+        # Debugging the SSH connection
+        echo "Checking SSH connectivity..."
+        ssh -o StrictHostKeyChecking=no -v -i ${{ secrets.DO_SSH_PRIVATE_KEY }} ${DO_SSH_USER}@${DO_HOST} "echo SSH connection successful!"
+        
         ssh -o StrictHostKeyChecking=no -i ${{ secrets.DO_SSH_PRIVATE_KEY }} ${DO_SSH_USER}@${DO_HOST} << 'EOF'
+          # Debugging: List files to ensure the path is correct
+          echo "Listing files in /opt/pythonapp"
+          ls -l /opt/pythonapp
+
           # Check if deploy_to_gcp_app_engine file exists
           if [ ! -f /opt/pythonapp/deploy_to_gcp_app_engine ]; then
             echo "Error: 'deploy_to_gcp_app_engine' file is missing!"
