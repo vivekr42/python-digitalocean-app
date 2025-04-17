@@ -10,36 +10,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the code from the repository
-      - name: Checkout repository
-        uses: actions/checkout@v2
+    - name: Checkout repository
+      uses: actions/checkout@v2
 
-      # Set up SSH key and known hosts
-      - name: Set up SSH key
-        run: |
-          # Decode the base64 encoded SSH private key stored in the secret
-          echo "$DO_SSH_KEY_BASE64" | base64 --decode > private_key
-          
-          # Set the proper permissions for the private key
-          chmod 600 private_key
-          
-          # Create SSH directory and move the key to the appropriate location
-          mkdir -p ~/.ssh
-          mv private_key ~/.ssh/id_ed25519
-          
-          # Make sure the known_hosts directory exists
-          mkdir -p ~/.ssh/known_hosts
+    - name: Set up SSH keys
+      run: |
+        mkdir -p ~/.ssh
+        echo "$DO_SSH_KEY_BASE64" | base64 --decode > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        ssh-keyscan -H $DO_HOST >> ~/.ssh/known_hosts
 
-          # Add the remote server to known hosts (Avoid SSH warnings)
-          ssh-keyscan -t ed25519 $HOST >> ~/.ssh/known_hosts || echo "Failed to add $HOST to known_hosts"
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y openssh-client rsync
 
-      # Install required dependencies (rsync and OpenSSH client)
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y rsync openssh-client
+    - name: Rsync files to DigitalOcean server
+      run: |
+        rsync -avz -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" ./ $DO_SSH_USER@$DO_HOST:/opt/pythonapp/
 
-      # Deploy files to DigitalOcean server using rsync over SSH
-      - name: Deploy files to DigitalOcean
-        run: |
-          rsync -avz -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" ./ $USER@$HOST:/opt/pythonapp/
+    - name: Restart the application on the server (Optional)
+      run: |
+        ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no $DO_SSH_USER@$DO_HOST 'sudo systemctl restart pythonapp.service'
