@@ -1,0 +1,40 @@
+name: Deploy to DigitalOcean
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+
+      - name: Deploy to Droplet
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_HOST }} << 'EOF'
+            APP_DIR="/opt/pythonapp"
+
+            if [ ! -d "$APP_DIR" ]; then
+              mkdir -p $APP_DIR
+              git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git $APP_DIR
+            else
+              cd $APP_DIR
+              git pull origin main
+            fi
+
+            cd $APP_DIR
+
+            docker stop pythonapp || true
+            docker rm pythonapp || true
+            docker build -t pythonapp .
+            docker run -d --name pythonapp -p 80:8000 pythonapp
+          EOF
