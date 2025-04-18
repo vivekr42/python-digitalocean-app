@@ -10,4 +10,4 @@ services:
       - ENVIRONMENT=prod
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
     ports:
-      - "80:8080"
+      - "8080:8080"
