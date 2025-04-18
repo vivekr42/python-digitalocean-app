@@ -1,46 +1,34 @@
-name: Deploy Python App to DigitalOcean
+name: Deploy to DigitalOcean
 
 on:
   push:
     branches:
-      - main  # Trigger deployment on push to 'main' branch
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the repository
-      - name: Checkout repository
-        uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      # Set up Python environment
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.9'
+    - name: Set up SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.HOST }} >> ~/.ssh/known_hosts
 
-      # Install dependencies
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+    - name: Copy files to Droplet
+      run: |
+        rsync -avz --exclude='.git*' --exclude='__pycache__' ./ ${{ secrets.SSH_USER }}@${{ secrets.HOST }}:/root/app
 
-      # Set up SSH to the DigitalOcean Droplet
-      - name: Set up SSH key
-        uses: webfactory/ssh-agent@v0.5.3
-        with:
-          ssh-private-key: ${{ secrets.DO_SSH_PRIVATE_KEY }}  # GitHub Secret containing your private key
-
-      # Deploy app to DigitalOcean
-      - name: Deploy to DigitalOcean
-        run: |
-          ssh -o StrictHostKeyChecking=no root@144.126.215.126 << 'EOF'
-            # Navigate to your app directory, or clone the repo if not exists
-            cd /home/root/python-digitalocean-app || git clone https://github.com/vivekr42/python-digitalocean-app.git
-            cd python-digitalocean-app
-            git pull origin main  # Pull the latest changes from GitHub
-
-            # Restart your app (adjust service name as necessary)
-            sudo systemctl restart gunicorn  # Replace with your actual service name
-          EOF
+    - name: Deploy on Droplet
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.HOST }} << 'EOF'
+          cd /root/app
+          echo "GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}" > .env
+          docker compose -f docker-compose.prod.yml down || true
+          docker compose -f docker-compose.prod.yml up --build -d
+        EOF

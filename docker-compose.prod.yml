@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  app_service:
+    build:
+      context: .
+      dockerfile: deploy/app/Dockerfile
+    container_name: ai_tutor_app
+    environment:
+      - ENVIRONMENT=prod
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    ports:
+      - "80:8080"
